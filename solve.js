@@ -94,7 +94,8 @@ export function run(input) {
   // run of lines equal in both as far as it goes. The first path to reach
   // both ends is the script.
   //
-  // Vs[d] is an Int32Array(2d+1) holding, per diagonal k (index k+d), the
+  // Vs[d] packs the d+1 reachable-parity slots at (k+d)/2+1, with a zero
+  // sentinel on each side. Each Int32Array holds, per diagonal k, the
   // old lines consumed plus one (0 = the diagonal is unreachable at this
   // d), so the search keeps its whole history for the walk back with no
   // object per step.
@@ -102,47 +103,30 @@ export function run(input) {
   let D = 0;
   let kEnd = 0;
   {
-    const v0 = new Int32Array(1);
+    const v0 = new Int32Array(3);
     let x = 0;
     let y = 0;
     while (x < N && y < M && A[x] === B[y]) { x++; y++; }
-    v0[0] = x + 1;
+    v0[1] = x + 1;
     Vs.push(v0);
     if (x < N || y < M) {
       let found = false;
       for (let d = 1; d <= N + M && !found; d++) {
         const prev = Vs[d - 1];
-        const cur = new Int32Array(2 * d + 1);
-        const pm = d - 1;
-        const pspan = 2 * pm;
-        for (let k = -d; k <= d; k += 2) {
+        const cur = new Int32Array(d + 3);
+        for (let k = -d, slot = 0; k <= d; k += 2, slot++) {
           // Deletion candidate from diagonal k - 1 at d - 1.
-          const di = k - 1 + pm;
-          let canDel = false;
-          let xDel = -1;
-          if (di >= 0 && di <= pspan) {
-            const s = prev[di];
-            if (s !== 0) {
-              const xp = s - 1;
-              if (xp < N) { canDel = true; xDel = xp + 1; }
-            }
-          }
+          const del = prev[slot];
+          const xDel = del !== 0 && del <= N ? del : -1;
           // Insertion candidate from diagonal k + 1 at d - 1.
-          const ii = k + 1 + pm;
-          let canIns = false;
-          let xIns = -1;
-          if (ii >= 0 && ii <= pspan) {
-            const s = prev[ii];
-            if (s !== 0) {
-              const xp = s - 1;
-              if (xp - (k + 1) < M) { canIns = true; xIns = xp; }
-            }
-          }
-          if (!canDel && !canIns) continue;
-          let x = (canDel && (!canIns || xDel >= xIns)) ? xDel : xIns;
+          const ii = slot + 1;
+          const ins = prev[ii];
+          const xIns = ins !== 0 && ins - k - 2 < M ? ins - 1 : -1;
+          let x = xDel >= xIns ? xDel : xIns;
+          if (x < 0) continue;
           let yy = x - k;
           while (x < N && yy < M && A[x] === B[yy]) { x++; yy++; }
-          cur[k + d] = x + 1;
+          cur[ii] = x + 1;
           if (x >= N && yy >= M) { D = d; kEnd = k; found = true; break; }
         }
         Vs.push(cur);
@@ -168,27 +152,27 @@ export function run(input) {
   {
     let d = D;
     let k = kEnd;
-    let x = Vs[D][k + D] - 1;
+    let x = Vs[D][(k + D) / 2 + 1] - 1;
     while (d > 0) {
       const prev = Vs[d - 1];
       const pm = d - 1;
-      const pspan = 2 * pm;
-      const di = k - 1 + pm;
+      const pspan = pm + 1;
+      const di = (k + d) / 2;
       let canDel = false;
       let xDel = -1;
       let xpDel = -1;
-      if (di >= 0 && di <= pspan) {
+      if (di >= 1 && di <= pspan) {
         const s = prev[di];
         if (s !== 0) {
           const xp = s - 1;
           if (xp < N) { canDel = true; xpDel = xp; xDel = xp + 1; }
         }
       }
-      const ii = k + 1 + pm;
+      const ii = di + 1;
       let canIns = false;
       let xIns = -1;
       let xpIns = -1;
-      if (ii >= 0 && ii <= pspan) {
+      if (ii >= 1 && ii <= pspan) {
         const s = prev[ii];
         if (s !== 0) {
           const xp = s - 1;
